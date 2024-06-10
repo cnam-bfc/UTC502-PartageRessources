@@ -2,133 +2,103 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <pthread.h>
+#include <signal.h>
 
-#define PORT 8080
+#define PORT 12345
 #define MAX_CLIENTS 10
+#define BUFFER_SIZE 256
 
-int available_resource;
-pthread_mutex_t resource_lock;
+int available_resources;
 
-typedef struct {
-    struct sockaddr_in address;
-    int sock;
-    int index;
-    int resource_consumed;
-} client_t;
+void error(const char *msg) {
+    perror(msg);
+    exit(1);
+}
 
-client_t *clients[MAX_CLIENTS];
-
-void *handle_client(void *arg) {
-    client_t *cli = (client_t *)arg;
-    char buffer[1024];
+void handle_client(int client_socket) {
+    char buffer[BUFFER_SIZE];
     int n;
-
-    while ((n = recv(cli->sock, buffer, sizeof(buffer), 0)) > 0) {
+    while ((n = read(client_socket, buffer, BUFFER_SIZE-1)) > 0) {
         buffer[n] = '\0';
-        int requested_resource;
-        sscanf(buffer, "%d", &requested_resource);
-
-        pthread_mutex_lock(&resource_lock);
-
-        if (requested_resource > 0) {
-            if (available_resource >= requested_resource) {
-                available_resource -= requested_resource;
-                cli->resource_consumed += requested_resource;
-                sprintf(buffer, "Resource allocated. Available: %d", available_resource);
-            } else {
-                sprintf(buffer, "Not enough resources. Available: %d", available_resource);
-            }
-        } else {
-            available_resource += (-requested_resource);
-            cli->resource_consumed += requested_resource;
-            sprintf(buffer, "Resource released. Available: %d", available_resource);
+        int requested_resources = atoi(buffer);
+        if (requested_resources <= 0) {
+            close(client_socket);
+            return;
         }
-
-        pthread_mutex_unlock(&resource_lock);
-        send(cli->sock, buffer, strlen(buffer), 0);
+        
+        if (requested_resources <= available_resources) {
+            available_resources -= requested_resources;
+            sprintf(buffer, "Resources allocated: %d. Remaining: %d\n", requested_resources, available_resources);
+        } else {
+            sprintf(buffer, "Not enough resources. Remaining: %d\n", available_resources);
+        }
+        write(client_socket, buffer, strlen(buffer));
     }
+    close(client_socket);
+}
 
-    pthread_mutex_lock(&resource_lock);
-    available_resource += cli->resource_consumed;
-    close(cli->sock);
-    clients[cli->index] = NULL;
-    free(cli);
-    pthread_mutex_unlock(&resource_lock);
-
-    return NULL;
+void sigchld_handler(int sig) {
+    while (waitpid(-1, NULL, WNOHANG) > 0);
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <initial_resource>\n", argv[0]);
-        return 1;
-    }
-
-    available_resource = atoi(argv[1]);
-    int server_sock, new_sock;
+    int server_socket, client_socket;
+    socklen_t client_len;
     struct sockaddr_in server_addr, client_addr;
-    socklen_t addr_size;
-    pthread_t tid;
+    struct sigaction sa;
 
-    server_sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_sock < 0) {
-        perror("Socket creation failed");
-        return 1;
+    if (argc != 2) {
+        fprintf(stderr, "Usage: %s <total_resources>\n", argv[0]);
+        exit(1);
     }
 
+    available_resources = atoi(argv[1]);
+
+    server_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_socket < 0) {
+        error("ERROR opening socket");
+    }
+
+    memset((char *)&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(PORT);
 
-    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Bind failed");
-        close(server_sock);
-        return 1;
+    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        error("ERROR on binding");
     }
 
-    if (listen(server_sock, MAX_CLIENTS) < 0) {
-        perror("Listen failed");
-        close(server_sock);
-        return 1;
+    listen(server_socket, MAX_CLIENTS);
+
+    sa.sa_handler = sigchld_handler;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESTART;
+    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
+        error("sigaction");
     }
 
-    printf("Server started on port %d with %d resources.\n", PORT, available_resource);
+    printf("Server running on port %d with %d total resources\n", PORT, available_resources);
 
     while (1) {
-        addr_size = sizeof(client_addr);
-        new_sock = accept(server_sock, (struct sockaddr *)&client_addr, &addr_size);
-        if (new_sock < 0) {
-            perror("Accept failed");
-            continue;
+        client_len = sizeof(client_addr);
+        client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_len);
+        if (client_socket < 0) {
+            error("ERROR on accept");
         }
 
-        pthread_mutex_lock(&resource_lock);
-
-        int i;
-        for (i = 0; i < MAX_CLIENTS; ++i) {
-            if (!clients[i]) {
-                client_t *cli = (client_t *)malloc(sizeof(client_t));
-                cli->address = client_addr;
-                cli->sock = new_sock;
-                cli->index = i;
-                cli->resource_consumed = 0;
-                clients[i] = cli;
-                pthread_create(&tid, NULL, handle_client, (void *)cli);
-                break;
-            }
+        if (fork() == 0) {
+            close(server_socket);
+            handle_client(client_socket);
+            exit(0);
+        } else {
+            close(client_socket);
         }
-
-        if (i == MAX_CLIENTS) {
-            printf("Max clients reached. Connection rejected: %s:%d\n",
-                   inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
-            close(new_sock);
-        }
-
-        pthread_mutex_unlock(&resource_lock);
     }
 
-    close(server_sock);
+    close(server_socket);
     return 0;
 }
