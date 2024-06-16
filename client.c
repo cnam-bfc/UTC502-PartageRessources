@@ -117,6 +117,7 @@ void demander_ressource(int socket, int taille) {
     if (sscanf(reponse, "GRANTED %d", &ressource_allouee) == 1) {
         printf("Ressource allouée: %d\n", ressource_allouee);
         total_resources += ressource_allouee;
+        // TODO : Corriger bug de récupération de la raison du refus
     } else if (sscanf(reponse, "DENIED %d, REASON: %s", &ressource_allouee, erreur) == 2) {
         printf("Ressource refusée: %d, raison: %s\n", ressource_allouee, erreur);
 
