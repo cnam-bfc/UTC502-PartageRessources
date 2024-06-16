@@ -42,6 +42,16 @@ int socket_client(const char *address, unsigned short port) {
     return client_socket;
 }
 
+void fermer_socket(int socket) {
+    printf("Fermeture de la socket...\n");
+    if (close(socket) == -1) {
+        perror("Erreur lors de la fermeture de la socket");
+        exit(EXIT_FAILURE);
+    } else {
+        printf("Socket fermée !\n");
+    }
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 5) {
         usage(argv[0]);
@@ -65,7 +75,7 @@ int main(int argc, char *argv[]) {
         printf("Envoi de la demande: \"%s\"\n", buffer);
         if (send(sock, buffer, strlen(buffer), 0) < 0) {
             perror("Échec de l'envoi");
-            close(sock);
+            fermer_socket(sock);
             exit(EXIT_FAILURE);
         } else {
             printf("Demande envoyée !\n");
@@ -75,11 +85,11 @@ int main(int argc, char *argv[]) {
         printf("Attente de la réponse du serveur...\n");
         if ((bytes_received = recv(sock, buffer, BUFFER_SIZE, 0)) < 0) {
             perror("Échec de la réception");
-            close(sock);
+            fermer_socket(sock);
             exit(EXIT_FAILURE);
         } else if (bytes_received == 0) {
             printf("Le serveur a fermé la connexion\n");
-            close(sock);
+            fermer_socket(sock);
             exit(EXIT_FAILURE);
         } else {
             printf("Réponse reçue !\n");
@@ -94,6 +104,6 @@ int main(int argc, char *argv[]) {
     }
 
     // Fermer la socket
-    close(sock);
+    fermer_socket(sock);
     return 0;
 }
