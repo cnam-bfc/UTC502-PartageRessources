@@ -62,23 +62,34 @@ int main(int argc, char *argv[]) {
     while (1) {
         // Envoyer une demande de ressource au serveur
         snprintf(buffer, BUFFER_SIZE, "DEMANDE %d", resource_amount);
+        printf("Envoi de la demande: \"%s\"\n", buffer);
         if (send(sock, buffer, strlen(buffer), 0) < 0) {
             perror("Échec de l'envoi");
             close(sock);
             exit(EXIT_FAILURE);
+        } else {
+            printf("Demande envoyée !\n");
         }
 
         // Recevoir la réponse du serveur
+        printf("Attente de la réponse du serveur...\n");
         if ((bytes_received = recv(sock, buffer, BUFFER_SIZE, 0)) < 0) {
             perror("Échec de la réception");
             close(sock);
             exit(EXIT_FAILURE);
+        } else if (bytes_received == 0) {
+            printf("Le serveur a fermé la connexion\n");
+            close(sock);
+            exit(EXIT_FAILURE);
+        } else {
+            printf("Réponse reçue !\n");
         }
 
         buffer[bytes_received] = '\0';
-        printf("Réponse du serveur: %s\n", buffer);
+        printf("Réponse du serveur: \"%s\"\n", buffer);
 
         // Attendre le délai spécifié avant d'envoyer la prochaine demande
+        printf("Attente de %d secondes avant la prochaine demande...\n", delay);
         sleep(delay);
     }
 
