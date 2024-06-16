@@ -121,7 +121,9 @@ void demander_ressource(int socket, int taille) {
         printf("Ressource refusée: %d, raison: %s\n", ressource_allouee, erreur);
 
         // Dans le cas où la ressource est refusée, on fait une demande de libération de ressource
-        liberer_ressource(socket, taille);
+        if (total_resources > 0) {
+            liberer_ressource(socket, taille);
+        }
     }
 
     // Libérer la mémoire allouée pour la réponse
