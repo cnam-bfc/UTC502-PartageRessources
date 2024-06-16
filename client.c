@@ -7,11 +7,13 @@
 
 #define BUFFER_SIZE 1024
 
+// Méthode permettant d'afficher le message d'erreur d'utilisation du programme
 void usage(const char *prog_name) {
     fprintf(stderr, "Usage: %s <server_address> <server_port> <resource_amount> <delay>\n", prog_name);
     exit(EXIT_FAILURE);
 }
 
+// Méthode permettant de créer une socket client et de se connecter à un serveur
 int socket_client(const char *address, unsigned short port) {
     int client_socket;
     struct sockaddr_in serveur_sockaddr_in;
@@ -42,6 +44,7 @@ int socket_client(const char *address, unsigned short port) {
     return client_socket;
 }
 
+// Méthode permettant de fermer une socket
 void fermer_socket(int socket) {
     printf("Fermeture de la socket...\n");
     if (close(socket) == -1) {
@@ -52,6 +55,73 @@ void fermer_socket(int socket) {
     }
 }
 
+// Méthode permettant d'envoyer une commande au serveur
+void envoyer_commande(int socket, const char *commande) {
+    printf("Envoi de la commande: \"%s\"...\n", commande);
+    if (send(socket, commande, strlen(commande), 0) < 0) {
+        perror("Échec de l'envoi");
+        fermer_socket(socket);
+        exit(EXIT_FAILURE);
+    } else {
+        printf("Commande envoyée !\n");
+    }
+}
+
+// Méthode permettant de recevoir une réponse du serveur et la retourner
+char *recevoir_reponse(int socket) {
+    char buffer[BUFFER_SIZE];
+    int bytes_received;
+
+    printf("Attente de la réponse du serveur...\n");
+    if ((bytes_received = recv(socket, buffer, BUFFER_SIZE, 0)) < 0) {
+        perror("Échec de la réception");
+        fermer_socket(socket);
+        exit(EXIT_FAILURE);
+    } else if (bytes_received == 0) {
+        printf("Le serveur a fermé la connexion\n");
+        fermer_socket(socket);
+        exit(EXIT_FAILURE);
+    } else {
+        printf("Réponse reçue !\n");
+    }
+
+    buffer[bytes_received] = '\0';
+    printf("Réponse du serveur: \"%s\"\n", buffer);
+
+    return strdup(buffer);
+}
+
+// Méthode permettant de faire une demande de libération de ressource au serveur
+void liberer_ressource(int socket, int taille) {
+    char buffer[BUFFER_SIZE];
+    snprintf(buffer, BUFFER_SIZE, "RELEASE %d", taille);
+    envoyer_commande(socket, buffer);
+    char *reponse = recevoir_reponse(socket);
+    int ressource_liberee;
+    if (sscanf(reponse, "RELEASED %d", &ressource_liberee) == 1) {
+        printf("Ressource libérée: %d\n", ressource_liberee);
+    }
+}
+
+// Méthode permettant de faire une demande de ressource au serveur
+void demander_ressource(int socket, int taille) {
+    char buffer[BUFFER_SIZE];
+    snprintf(buffer, BUFFER_SIZE, "REQUEST %d", taille);
+    envoyer_commande(socket, buffer);
+    char *reponse = recevoir_reponse(socket);
+    int ressource_allouee;
+    char *erreur;
+    if (sscanf(reponse, "GRANTED %d", &ressource_allouee) == 1) {
+        printf("Ressource allouée: %d\n", ressource_allouee);
+    } else if (sscanf(reponse, "DENIED %d, REASON: %s", &ressource_allouee, erreur) == 2) {
+        printf("Ressource refusée: %d, raison: %s\n", ressource_allouee, erreur);
+
+        // Dans le cas où la ressource est refusée, on fait une demande de libération de ressource
+        liberer_ressource(socket, taille);
+    }
+}
+
+// Méthode principale du programme
 int main(int argc, char *argv[]) {
     if (argc != 5) {
         usage(argv[0]);
@@ -71,39 +141,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         // Envoyer une demande de ressource au serveur
-        snprintf(buffer, BUFFER_SIZE, "REQUEST %d", resource_amount);
-        printf("Envoi de la demande: \"%s\"...\n", buffer);
-        if (send(sock, buffer, strlen(buffer), 0) < 0) {
-            perror("Échec de l'envoi");
-            fermer_socket(sock);
-            exit(EXIT_FAILURE);
-        } else {
-            printf("Demande envoyée !\n");
-        }
-
-        // Recevoir la réponse du serveur
-        printf("Attente de la réponse du serveur...\n");
-        if ((bytes_received = recv(sock, buffer, BUFFER_SIZE, 0)) < 0) {
-            perror("Échec de la réception");
-            fermer_socket(sock);
-            exit(EXIT_FAILURE);
-        } else if (bytes_received == 0) {
-            printf("Le serveur a fermé la connexion\n");
-            fermer_socket(sock);
-            exit(EXIT_FAILURE);
-        } else {
-            printf("Réponse reçue !\n");
-        }
-
-        buffer[bytes_received] = '\0';
-        printf("Réponse du serveur: \"%s\"\n", buffer);
-
-        // Traiter la réponse du serveur
-        if (sscanf(buffer, "GRANTED %d", &resource_amount) == 1) {
-            printf("Ressource allouée: %d\n", resource_amount);
-        } else if (sscanf(buffer, "DENIED %d", &resource_amount) == 1) {
-            printf("Ressource refusée: %d\n", resource_amount);
-        }
+        demander_ressource(sock, resource_amount);
 
         // Attendre le délai spécifié avant d'envoyer la prochaine demande
         printf("Attente de %d secondes avant la prochaine demande...\n", delay);
