@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
     while (1) {
         // Envoyer une demande de ressource au serveur
         snprintf(buffer, BUFFER_SIZE, "DEMANDE %d", resource_amount);
-        printf("Envoi de la demande: \"%s\"\n", buffer);
+        printf("Envoi de la demande: \"%s\"...\n", buffer);
         if (send(sock, buffer, strlen(buffer), 0) < 0) {
             perror("Échec de l'envoi");
             fermer_socket(sock);
