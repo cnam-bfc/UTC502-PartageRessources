@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
 
     printf("Serveur à l'écoute sur le port %d\n", port);
 
-    while (1) {
+    for (;;) {
         int client_sock;
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);

@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
     // Créer une socket
     sock = socket_client(server_address, server_port);
 
-    while (1) {
+    for (;;) {
         // Envoyer une demande de ressource au serveur
         demander_ressource(sock, resource_amount);
 
