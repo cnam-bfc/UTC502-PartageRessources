@@ -7,6 +7,8 @@
 
 #define BUFFER_SIZE 1024
 
+int total_resources = 0;
+
 // Méthode permettant d'afficher le message d'erreur d'utilisation du programme
 void usage(const char *prog_name) {
     fprintf(stderr, "Usage: %s <server_address> <server_port> <resource_amount> <delay>\n", prog_name);
@@ -100,6 +102,7 @@ void liberer_ressource(int socket, int taille) {
     int ressource_liberee;
     if (sscanf(reponse, "RELEASED %d", &ressource_liberee) == 1) {
         printf("Ressource libérée: %d\n", ressource_liberee);
+        total_resources -= ressource_liberee;
     }
 }
 
@@ -113,6 +116,7 @@ void demander_ressource(int socket, int taille) {
     char erreur[BUFFER_SIZE];
     if (sscanf(reponse, "GRANTED %d", &ressource_allouee) == 1) {
         printf("Ressource allouée: %d\n", ressource_allouee);
+        total_resources += ressource_allouee;
     } else if (sscanf(reponse, "DENIED %d, REASON: %s", &ressource_allouee, erreur) == 2) {
         printf("Ressource refusée: %d, raison: %s\n", ressource_allouee, erreur);
 
@@ -145,6 +149,9 @@ int main(int argc, char *argv[]) {
     while (1) {
         // Envoyer une demande de ressource au serveur
         demander_ressource(sock, resource_amount);
+
+        // Afficher le total des ressources allouées
+        printf("Total des ressources allouées: %d\n", total_resources);
 
         // Attendre le délai spécifié avant d'envoyer la prochaine demande
         printf("Attente de %d secondes avant la prochaine demande...\n", delay);
