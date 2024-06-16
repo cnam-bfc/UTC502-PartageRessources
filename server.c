@@ -44,9 +44,9 @@ void handle_client(int client_sock) {
 
             if (requested_amount <= resource_amount) {
                 resource_amount -= requested_amount;
-                snprintf(buffer, BUFFER_SIZE, "ALLOUÉ %d", requested_amount);
+                snprintf(buffer, BUFFER_SIZE, "ALLOCATED %d", requested_amount);
             } else {
-                snprintf(buffer, BUFFER_SIZE, "RESSOURCES INSUFFISANTES");
+                snprintf(buffer, BUFFER_SIZE, "REFUSED %d, REASON: Ressources insuffisantes", requested_amount);
             }
 
             sb.sem_op = 1; // Déverrouiller
@@ -58,7 +58,7 @@ void handle_client(int client_sock) {
             semop(sem_id, &sb, 1);
 
             resource_amount += requested_amount;
-            snprintf(buffer, BUFFER_SIZE, "LIBÉRÉ %d", requested_amount);
+            snprintf(buffer, BUFFER_SIZE, "RELEASED %d", requested_amount);
 
             sb.sem_op = 1; // Déverrouiller
             semop(sem_id, &sb, 1);
