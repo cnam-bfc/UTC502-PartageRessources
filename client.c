@@ -110,7 +110,7 @@ void demander_ressource(int socket, int taille) {
     envoyer_commande(socket, buffer);
     char *reponse = recevoir_reponse(socket);
     int ressource_allouee;
-    char *erreur;
+    char erreur[BUFFER_SIZE];
     if (sscanf(reponse, "GRANTED %d", &ressource_allouee) == 1) {
         printf("Ressource allouée: %d\n", ressource_allouee);
     } else if (sscanf(reponse, "DENIED %d, REASON: %s", &ressource_allouee, erreur) == 2) {
@@ -119,6 +119,9 @@ void demander_ressource(int socket, int taille) {
         // Dans le cas où la ressource est refusée, on fait une demande de libération de ressource
         liberer_ressource(socket, taille);
     }
+
+    // Libérer la mémoire allouée pour la réponse
+    free(reponse);
 }
 
 // Méthode principale du programme
