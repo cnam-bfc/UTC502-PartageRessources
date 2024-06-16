@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
     }
 
     const char *server_ip = argv[1];
-    unsigned short server_port = atoi(argv[2]);
+    int server_port = atoi(argv[2]);
     int resource_amount = atoi(argv[3]);
     int delay = atoi(argv[4]);
 
