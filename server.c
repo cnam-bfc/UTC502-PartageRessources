@@ -29,6 +29,17 @@ void usage(const char *prog_name) {
     exit(EXIT_FAILURE);
 }
 
+// Méthode permettant de fermer une socket
+void fermer_socket(int socket) {
+    printf("Fermeture de la socket %d...\n", socket);
+    if (close(socket) == -1) {
+        perror("Erreur lors de la fermeture de la socket %d");
+        exit(EXIT_FAILURE);
+    } else {
+        printf("Socket %d fermée !\n", socket);
+    }
+}
+
 void handle_client(int client_sock) {
     char buffer[BUFFER_SIZE];
     int bytes_received;
@@ -67,7 +78,7 @@ void handle_client(int client_sock) {
         }
     }
 
-    close(client_sock);
+    fermer_socket(client_sock);
     exit(0);
 }
 
@@ -115,14 +126,14 @@ int main(int argc, char *argv[]) {
     // Lier la socket
     if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
         perror("Échec de la liaison");
-        close(server_sock);
+        fermer_socket(server_sock);
         exit(EXIT_FAILURE);
     }
 
     // Écouter les connexions
     if (listen(server_sock, MAX_CLIENTS) < 0) {
         perror("Échec de l'écoute");
-        close(server_sock);
+        fermer_socket(server_sock);
         exit(EXIT_FAILURE);
     }
 
@@ -145,12 +156,12 @@ int main(int argc, char *argv[]) {
         pid_t pid = fork();
         if (pid < 0) {
             perror("Échec du fork");
-            close(client_sock);
+            fermer_socket(client_sock);
         } else if (pid == 0) {
-            close(server_sock);
+            fermer_socket(server_sock);
             handle_client(client_sock);
         } else {
-            close(client_sock);
+            fermer_socket(client_sock);
             clients[client_count].client_pid = pid;
             clients[client_count].resource_amount = 0;
             client_count++;
@@ -158,7 +169,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Nettoyer
-    close(server_sock);
+    fermer_socket(server_sock);
     semctl(sem_id, 0, IPC_RMID);
     return 0;
 }

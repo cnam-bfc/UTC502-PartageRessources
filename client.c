@@ -48,12 +48,12 @@ int socket_client(const char *address, unsigned short port) {
 
 // Méthode permettant de fermer une socket
 void fermer_socket(int socket) {
-    printf("Fermeture de la socket...\n");
+    printf("Fermeture de la socket %d...\n", socket);
     if (close(socket) == -1) {
-        perror("Erreur lors de la fermeture de la socket");
+        perror("Erreur lors de la fermeture de la socket %d");
         exit(EXIT_FAILURE);
     } else {
-        printf("Socket fermée !\n");
+        printf("Socket %d fermée !\n", socket);
     }
 }
 
