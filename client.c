@@ -26,54 +26,54 @@ int main(int argc, char *argv[]) {
     char buffer[BUFFER_SIZE];
     int bytes_received;
 
-    // Create socket
+    // Créer une socket
     if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("Socket creation failed");
+        perror("Échec de la création de la socket");
         exit(EXIT_FAILURE);
     }
 
-    // Setup server address
+    // Configuration de l'adresse du serveur
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_port = htons(server_port);
 
     if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
-        perror("Invalid address/ Address not supported");
+        perror("Adresse invalide / Adresse non supportée");
         close(sock);
         exit(EXIT_FAILURE);
     }
 
-    // Connect to server
+    // Connexion au serveur
     if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Connection failed");
+        perror("Échec de la connexion");
         close(sock);
         exit(EXIT_FAILURE);
     }
 
     while (1) {
-        // Send resource request to server
-        snprintf(buffer, BUFFER_SIZE, "REQUEST %d", resource_amount);
+        // Envoyer une demande de ressource au serveur
+        snprintf(buffer, BUFFER_SIZE, "DEMANDE %d", resource_amount);
         if (send(sock, buffer, strlen(buffer), 0) < 0) {
-            perror("Send failed");
+            perror("Échec de l'envoi");
             close(sock);
             exit(EXIT_FAILURE);
         }
 
-        // Receive response from server
+        // Recevoir la réponse du serveur
         if ((bytes_received = recv(sock, buffer, BUFFER_SIZE, 0)) < 0) {
-            perror("Receive failed");
+            perror("Échec de la réception");
             close(sock);
             exit(EXIT_FAILURE);
         }
 
         buffer[bytes_received] = '\0';
-        printf("Server response: %s\n", buffer);
+        printf("Réponse du serveur: %s\n", buffer);
 
-        // Wait for the specified delay
+        // Attendre le délai spécifié avant d'envoyer la prochaine demande
         sleep(delay);
     }
 
-    // Close socket
+    // Fermer la socket
     close(sock);
     return 0;
 }

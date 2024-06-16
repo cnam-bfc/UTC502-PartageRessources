@@ -38,28 +38,28 @@ void handle_client(int client_sock) {
 
         int requested_amount;
         if (sscanf(buffer, "REQUEST %d", &requested_amount) == 1) {
-            struct sembuf sb = {0, -1, 0}; // Lock
+            struct sembuf sb = {0, -1, 0}; // Verrouiller
             semop(sem_id, &sb, 1);
 
             if (requested_amount <= resource_amount) {
                 resource_amount -= requested_amount;
-                snprintf(buffer, BUFFER_SIZE, "ALLOCATED %d", requested_amount);
+                snprintf(buffer, BUFFER_SIZE, "ALLOUÉ %d", requested_amount);
             } else {
-                snprintf(buffer, BUFFER_SIZE, "INSUFFICIENT RESOURCES");
+                snprintf(buffer, BUFFER_SIZE, "RESSOURCES INSUFFISANTES");
             }
 
-            sb.sem_op = 1; // Unlock
+            sb.sem_op = 1; // Déverrouiller
             semop(sem_id, &sb, 1);
 
             send(client_sock, buffer, strlen(buffer), 0);
         } else if (sscanf(buffer, "RELEASE %d", &requested_amount) == 1) {
-            struct sembuf sb = {0, -1, 0}; // Lock
+            struct sembuf sb = {0, -1, 0}; // Verrouiller
             semop(sem_id, &sb, 1);
 
             resource_amount += requested_amount;
-            snprintf(buffer, BUFFER_SIZE, "RELEASED %d", requested_amount);
+            snprintf(buffer, BUFFER_SIZE, "LIBÉRÉ %d", requested_amount);
 
-            sb.sem_op = 1; // Unlock
+            sb.sem_op = 1; // Déverrouiller
             semop(sem_id, &sb, 1);
 
             send(client_sock, buffer, strlen(buffer), 0);
@@ -83,9 +83,7 @@ int main(int argc, char *argv[]) {
 
     resource_amount = atoi(argv[1]);
 
-    // Setup semaphore
-    sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
-    if (sem_id == -1) {
+    if ((sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666)) == -1) {
         perror("semget");
         exit(EXIT_FAILURE);
     }
@@ -98,51 +96,51 @@ int main(int argc, char *argv[]) {
     int server_sock;
     struct sockaddr_in server_addr;
 
-    // Create socket
+    // Créer une socket
     if ((server_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("Socket creation failed");
+        perror("Échec de la création de la socket");
         exit(EXIT_FAILURE);
     }
 
-    // Setup server address
+    // Configuration de l'adresse du serveur
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
     server_addr.sin_port = htons(8080);
 
-    // Bind socket
+    // Lier la socket
     if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Bind failed");
+        perror("Échec de la liaison");
         close(server_sock);
         exit(EXIT_FAILURE);
     }
 
-    // Listen for connections
+    // Écouter les connexions
     if (listen(server_sock, MAX_CLIENTS) < 0) {
-        perror("Listen failed");
+        perror("Échec de l'écoute");
         close(server_sock);
         exit(EXIT_FAILURE);
     }
 
-    signal(SIGCHLD, sigchld_handler); // Handle child termination
+    signal(SIGCHLD, sigchld_handler); // Gérer la terminaison des enfants
 
-    printf("Server listening on port 8080\n");
+    printf("Serveur à l'écoute sur le port 8080\\n");
 
     while (1) {
         int client_sock;
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
 
-        // Accept client connection
+        // Accepter une connexion client
         if ((client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
-            perror("Accept failed");
+            perror("Échec de l'acceptation");
             continue;
         }
 
-        // Fork to handle client
+        // Fork pour gérer le client
         pid_t pid = fork();
         if (pid < 0) {
-            perror("Fork failed");
+            perror("Échec du fork");
             close(client_sock);
         } else if (pid == 0) {
             close(server_sock);
@@ -155,7 +153,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // Cleanup
+    // Nettoyer
     close(server_sock);
     semctl(sem_id, 0, IPC_RMID);
     return 0;
