@@ -44,9 +44,9 @@ void handle_client(int client_sock) {
 
             if (requested_amount <= resource_amount) {
                 resource_amount -= requested_amount;
-                snprintf(buffer, BUFFER_SIZE, "ALLOCATED %d", requested_amount);
+                snprintf(buffer, BUFFER_SIZE, "GRANTED %d", requested_amount);
             } else {
-                snprintf(buffer, BUFFER_SIZE, "REFUSED %d, REASON: Ressources insuffisantes", requested_amount);
+                snprintf(buffer, BUFFER_SIZE, "DENIED %d, REASON: Ressources insuffisantes", requested_amount);
             }
 
             sb.sem_op = 1; // Déverrouiller

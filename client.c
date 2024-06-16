@@ -98,6 +98,13 @@ int main(int argc, char *argv[]) {
         buffer[bytes_received] = '\0';
         printf("Réponse du serveur: \"%s\"\n", buffer);
 
+        // Traiter la réponse du serveur
+        if (sscanf(buffer, "GRANTED %d", &resource_amount) == 1) {
+            printf("Ressource allouée: %d\n", resource_amount);
+        } else if (sscanf(buffer, "DENIED %d", &resource_amount) == 1) {
+            printf("Ressource refusée: %d\n", resource_amount);
+        }
+
         // Attendre le délai spécifié avant d'envoyer la prochaine demande
         printf("Attente de %d secondes avant la prochaine demande...\n", delay);
         sleep(delay);
