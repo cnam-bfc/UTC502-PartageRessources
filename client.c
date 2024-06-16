@@ -8,16 +8,16 @@
 #define BUFFER_SIZE 1024
 
 void usage(const char *prog_name) {
-    fprintf(stderr, "Usage: %s <server_ip> <server_port> <resource_amount> <delay>\n", prog_name);
+    fprintf(stderr, "Usage: %s <server_address> <server_port> <resource_amount> <delay>\n", prog_name);
     exit(EXIT_FAILURE);
 }
 
-int socket_client(const char *serveur, unsigned short port) {
+int socket_client(const char *address, unsigned short port) {
     int client_socket;
     struct sockaddr_in serveur_sockaddr_in;
     struct hostent *hostent;
 
-    if ((hostent = gethostbyname(serveur)) == NULL) {
+    if ((hostent = gethostbyname(address)) == NULL) {
         perror("Erreur lors de l'appel de gethostbyname()");
         exit(EXIT_FAILURE);
     }
@@ -32,10 +32,12 @@ int socket_client(const char *serveur, unsigned short port) {
     serveur_sockaddr_in.sin_port = htons(port);
     memcpy(&serveur_sockaddr_in.sin_addr, hostent->h_addr_list[0], hostent->h_length);
 
-    printf("Connexion a %s (%s) sur le port %d\n", hostent->h_name, serveur, port);
+    printf("Connexion à %s (%s) sur le port %d...\n", hostent->h_name, address, port);
     if (connect(client_socket, (struct sockaddr*)&serveur_sockaddr_in, sizeof(serveur_sockaddr_in)) == -1) {
         perror("Erreur lors de l'appel de connect()");
         exit(EXIT_FAILURE);
+    } else {
+        printf("Connecté !\n");
     }
     return client_socket;
 }
@@ -45,7 +47,7 @@ int main(int argc, char *argv[]) {
         usage(argv[0]);
     }
 
-    const char *server_ip = argv[1];
+    const char *server_address = argv[1];
     int server_port = atoi(argv[2]);
     int resource_amount = atoi(argv[3]);
     int delay = atoi(argv[4]);
@@ -55,7 +57,7 @@ int main(int argc, char *argv[]) {
     int bytes_received;
 
     // Créer une socket
-    sock = socket_client(server_ip, server_port);
+    sock = socket_client(server_address, server_port);
 
     while (1) {
         // Envoyer une demande de ressource au serveur
