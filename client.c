@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <arpa/inet.h>
+#include <netdb.h>
 
 #define BUFFER_SIZE 1024
 
@@ -11,44 +12,50 @@ void usage(const char *prog_name) {
     exit(EXIT_FAILURE);
 }
 
+int socket_client(const char *serveur, unsigned short port) {
+    int client_socket;
+    struct sockaddr_in serveur_sockaddr_in;
+    struct hostent *hostent;
+
+    if ((hostent = gethostbyname(serveur)) == NULL) {
+        perror("Erreur lors de l'appel de gethostbyname()");
+        exit(EXIT_FAILURE);
+    }
+
+    if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+        perror("Erreur lors de l'appel de socket()");
+        exit(EXIT_FAILURE);
+    }
+
+    memset(&serveur_sockaddr_in, 0, sizeof(serveur_sockaddr_in));
+    serveur_sockaddr_in.sin_family = AF_INET;
+    serveur_sockaddr_in.sin_port = htons(port);
+    memcpy(&serveur_sockaddr_in.sin_addr, hostent->h_addr_list[0], hostent->h_length);
+
+    printf("Connexion a %s (%s) sur le port %d\n", hostent->h_name, serveur, port);
+    if (connect(client_socket, (struct sockaddr*)&serveur_sockaddr_in, sizeof(serveur_sockaddr_in)) == -1) {
+        perror("Erreur lors de l'appel de connect()");
+        exit(EXIT_FAILURE);
+    }
+    return client_socket;
+}
+
 int main(int argc, char *argv[]) {
     if (argc != 5) {
         usage(argv[0]);
     }
 
     const char *server_ip = argv[1];
-    int server_port = atoi(argv[2]);
+    unsigned short server_port = atoi(argv[2]);
     int resource_amount = atoi(argv[3]);
     int delay = atoi(argv[4]);
 
     int sock;
-    struct sockaddr_in server_addr;
     char buffer[BUFFER_SIZE];
     int bytes_received;
 
     // Créer une socket
-    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("Échec de la création de la socket");
-        exit(EXIT_FAILURE);
-    }
-
-    // Configuration de l'adresse du serveur
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(server_port);
-
-    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
-        perror("Adresse invalide / Adresse non supportée");
-        close(sock);
-        exit(EXIT_FAILURE);
-    }
-
-    // Connexion au serveur
-    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Échec de la connexion");
-        close(sock);
-        exit(EXIT_FAILURE);
-    }
+    sock = socket_client(server_ip, server_port);
 
     while (1) {
         // Envoyer une demande de ressource au serveur
