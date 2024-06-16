@@ -1,65 +1,79 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <string.h>
 #include <arpa/inet.h>
 
-#define PORT 12345
-#define BUFFER_SIZE 256
+#define BUFFER_SIZE 1024
 
-void error(const char *msg) {
-    perror(msg);
-    exit(1);
+void usage(const char *prog_name) {
+    fprintf(stderr, "Usage: %s <server_ip> <server_port> <resource_amount> <delay>\n", prog_name);
+    exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[]) {
-    int sockfd, n;
-    struct sockaddr_in serv_addr;
+    if (argc != 5) {
+        usage(argv[0]);
+    }
+
+    const char *server_ip = argv[1];
+    int server_port = atoi(argv[2]);
+    int resource_amount = atoi(argv[3]);
+    int delay = atoi(argv[4]);
+
+    int sock;
+    struct sockaddr_in server_addr;
     char buffer[BUFFER_SIZE];
+    int bytes_received;
 
-    if (argc != 4) {
-        fprintf(stderr, "Usage: %s <hostname> <resources> <delay>\n", argv[0]);
-        exit(1);
+    // Create socket
+    if ((sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
     }
 
-    int resources = atoi(argv[2]);
-    int delay = atoi(argv[3]);
+    // Setup server address
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_port = htons(server_port);
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        error("ERROR opening socket");
+    if (inet_pton(AF_INET, server_ip, &server_addr.sin_addr) <= 0) {
+        perror("Invalid address/ Address not supported");
+        close(sock);
+        exit(EXIT_FAILURE);
     }
 
-    memset(&serv_addr, 0, sizeof(serv_addr));
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
-    if (inet_pton(AF_INET, argv[1], &serv_addr.sin_addr) <= 0) {
-        error("ERROR invalid host");
+    // Connect to server
+    if (connect(sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Connection failed");
+        close(sock);
+        exit(EXIT_FAILURE);
     }
 
-    if (connect(sockfd, (struct sockaddr *)&serv_addr, sizeof(serv_addr)) < 0) {
-        error("ERROR connecting");
+    while (1) {
+        // Send resource request to server
+        snprintf(buffer, BUFFER_SIZE, "REQUEST %d", resource_amount);
+        if (send(sock, buffer, strlen(buffer), 0) < 0) {
+            perror("Send failed");
+            close(sock);
+            exit(EXIT_FAILURE);
+        }
+
+        // Receive response from server
+        if ((bytes_received = recv(sock, buffer, BUFFER_SIZE, 0)) < 0) {
+            perror("Receive failed");
+            close(sock);
+            exit(EXIT_FAILURE);
+        }
+
+        buffer[bytes_received] = '\0';
+        printf("Server response: %s\n", buffer);
+
+        // Wait for the specified delay
+        sleep(delay);
     }
 
-    sprintf(buffer, "%d", resources);
-    n = write(sockfd, buffer, strlen(buffer));
-    if (n < 0) {
-        error("ERROR writing to socket");
-    }
-
-    memset(buffer, 0, BUFFER_SIZE);
-    n = read(sockfd, buffer, BUFFER_SIZE-1);
-    if (n < 0) {
-        error("ERROR reading from socket");
-    }
-
-    printf("%s\n", buffer);
-
-    close(sockfd);
-    sleep(delay);
-
+    // Close socket
+    close(sock);
     return 0;
 }

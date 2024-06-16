@@ -1,104 +1,162 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
+#include <string.h>
 #include <arpa/inet.h>
 #include <signal.h>
+#include <sys/wait.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/sem.h>
 
-#define PORT 12345
-#define MAX_CLIENTS 10
-#define BUFFER_SIZE 256
+#define MAX_CLIENTS 100
+#define BUFFER_SIZE 1024
 
-int available_resources;
+typedef struct {
+    int client_pid;
+    int resource_amount;
+} ClientInfo;
 
-void error(const char *msg) {
-    perror(msg);
-    exit(1);
+int resource_amount;
+ClientInfo clients[MAX_CLIENTS];
+int client_count = 0;
+int sem_id;
+
+void usage(const char *prog_name) {
+    fprintf(stderr, "Usage: %s <resource_amount>\n", prog_name);
+    exit(EXIT_FAILURE);
 }
 
-void handle_client(int client_socket) {
+void handle_client(int client_sock) {
     char buffer[BUFFER_SIZE];
-    int n;
-    while ((n = read(client_socket, buffer, BUFFER_SIZE-1)) > 0) {
-        buffer[n] = '\0';
-        int requested_resources = atoi(buffer);
-        if (requested_resources <= 0) {
-            close(client_socket);
-            return;
+    int bytes_received;
+    int client_pid = getpid();
+
+    while ((bytes_received = recv(client_sock, buffer, BUFFER_SIZE, 0)) > 0) {
+        buffer[bytes_received] = '\0';
+
+        int requested_amount;
+        if (sscanf(buffer, "REQUEST %d", &requested_amount) == 1) {
+            struct sembuf sb = {0, -1, 0}; // Lock
+            semop(sem_id, &sb, 1);
+
+            if (requested_amount <= resource_amount) {
+                resource_amount -= requested_amount;
+                snprintf(buffer, BUFFER_SIZE, "ALLOCATED %d", requested_amount);
+            } else {
+                snprintf(buffer, BUFFER_SIZE, "INSUFFICIENT RESOURCES");
+            }
+
+            sb.sem_op = 1; // Unlock
+            semop(sem_id, &sb, 1);
+
+            send(client_sock, buffer, strlen(buffer), 0);
+        } else if (sscanf(buffer, "RELEASE %d", &requested_amount) == 1) {
+            struct sembuf sb = {0, -1, 0}; // Lock
+            semop(sem_id, &sb, 1);
+
+            resource_amount += requested_amount;
+            snprintf(buffer, BUFFER_SIZE, "RELEASED %d", requested_amount);
+
+            sb.sem_op = 1; // Unlock
+            semop(sem_id, &sb, 1);
+
+            send(client_sock, buffer, strlen(buffer), 0);
         }
-        
-        if (requested_resources <= available_resources) {
-            available_resources -= requested_resources;
-            sprintf(buffer, "Resources allocated: %d. Remaining: %d\n", requested_resources, available_resources);
-        } else {
-            sprintf(buffer, "Not enough resources. Remaining: %d\n", available_resources);
-        }
-        write(client_socket, buffer, strlen(buffer));
     }
-    close(client_socket);
+
+    close(client_sock);
+    exit(0);
 }
 
-void sigchld_handler(int sig) {
+void sigchld_handler(int signum) {
+    int saved_errno = errno;
     while (waitpid(-1, NULL, WNOHANG) > 0);
+    errno = saved_errno;
 }
 
 int main(int argc, char *argv[]) {
-    int server_socket, client_socket;
-    socklen_t client_len;
-    struct sockaddr_in server_addr, client_addr;
-    struct sigaction sa;
-
     if (argc != 2) {
-        fprintf(stderr, "Usage: %s <total_resources>\n", argv[0]);
-        exit(1);
+        usage(argv[0]);
     }
 
-    available_resources = atoi(argv[1]);
+    resource_amount = atoi(argv[1]);
 
-    server_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_socket < 0) {
-        error("ERROR opening socket");
+    // Setup semaphore
+    sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
+    if (sem_id == -1) {
+        perror("semget");
+        exit(EXIT_FAILURE);
     }
 
-    memset((char *)&server_addr, 0, sizeof(server_addr));
+    if (semctl(sem_id, 0, SETVAL, 1) == -1) {
+        perror("semctl");
+        exit(EXIT_FAILURE);
+    }
+
+    int server_sock;
+    struct sockaddr_in server_addr;
+
+    // Create socket
+    if ((server_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("Socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    // Setup server address
+    memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(PORT);
+    server_addr.sin_port = htons(8080);
 
-    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        error("ERROR on binding");
+    // Bind socket
+    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Bind failed");
+        close(server_sock);
+        exit(EXIT_FAILURE);
     }
 
-    listen(server_socket, MAX_CLIENTS);
-
-    sa.sa_handler = sigchld_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-    if (sigaction(SIGCHLD, &sa, NULL) == -1) {
-        error("sigaction");
+    // Listen for connections
+    if (listen(server_sock, MAX_CLIENTS) < 0) {
+        perror("Listen failed");
+        close(server_sock);
+        exit(EXIT_FAILURE);
     }
 
-    printf("Server running on port %d with %d total resources\n", PORT, available_resources);
+    signal(SIGCHLD, sigchld_handler); // Handle child termination
+
+    printf("Server listening on port 8080\n");
 
     while (1) {
-        client_len = sizeof(client_addr);
-        client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_len);
-        if (client_socket < 0) {
-            error("ERROR on accept");
+        int client_sock;
+        struct sockaddr_in client_addr;
+        socklen_t client_addr_len = sizeof(client_addr);
+
+        // Accept client connection
+        if ((client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
+            perror("Accept failed");
+            continue;
         }
 
-        if (fork() == 0) {
-            close(server_socket);
-            handle_client(client_socket);
-            exit(0);
+        // Fork to handle client
+        pid_t pid = fork();
+        if (pid < 0) {
+            perror("Fork failed");
+            close(client_sock);
+        } else if (pid == 0) {
+            close(server_sock);
+            handle_client(client_sock);
         } else {
-            close(client_socket);
+            close(client_sock);
+            clients[client_count].client_pid = pid;
+            clients[client_count].resource_amount = 0;
+            client_count++;
         }
     }
 
-    close(server_socket);
+    // Cleanup
+    close(server_sock);
+    semctl(sem_id, 0, IPC_RMID);
     return 0;
 }
