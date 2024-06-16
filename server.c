@@ -25,7 +25,7 @@ int client_count = 0;
 int sem_id;
 
 void usage(const char *prog_name) {
-    fprintf(stderr, "Usage: %s <resource_amount>\n", prog_name);
+    fprintf(stderr, "Usage: %s <resource_amount> <port>\n", prog_name);
     exit(EXIT_FAILURE);
 }
 
@@ -78,13 +78,16 @@ void sigchld_handler(int signum) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
+    if (argc != 3) {
         usage(argv[0]);
     }
 
     resource_amount = atoi(argv[1]);
+    int port = atoi(argv[2]);
 
-    if ((sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666)) == -1) {
+    // Mise en place du sémaphore
+    sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
+    if (sem_id == -1) {
         perror("semget");
         exit(EXIT_FAILURE);
     }
@@ -107,7 +110,7 @@ int main(int argc, char *argv[]) {
     memset(&server_addr, 0, sizeof(server_addr));
     server_addr.sin_family = AF_INET;
     server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(8080);
+    server_addr.sin_port = htons(port);
 
     // Lier la socket
     if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
@@ -125,7 +128,7 @@ int main(int argc, char *argv[]) {
 
     signal(SIGCHLD, sigchld_handler); // Gérer la terminaison des enfants
 
-    printf("Serveur à l'écoute sur le port 8080\\n");
+    printf("Serveur à l'écoute sur le port %d\n", port);
 
     while (1) {
         int client_sock;
