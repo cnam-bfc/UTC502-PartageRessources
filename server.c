@@ -120,6 +120,16 @@ char *recevoir_commande(int socket) {
 void handle_client(int client_id, int client_sock) {
     int client_pid = getpid();
 
+    // Vérifier que le pid du client est valide
+    if (client_id < 0 || client_id >= MAX_CLIENTS || clients[client_id].client_pid != client_pid) {
+        perror("Client ID invalide");
+        fermer_socket(client_sock);
+        exit(EXIT_FAILURE);
+    }
+
+    // Récupérer les informations du client
+    ClientInfo clientInfo = clients[client_id];
+
     for (;;) {
         char *commande = recevoir_commande(client_sock);
 
