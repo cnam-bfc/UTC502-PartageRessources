@@ -1,0 +1,4 @@
+server_address=127.0.0.1
+server_port=12345
+resource_amount=2
+delay=2
