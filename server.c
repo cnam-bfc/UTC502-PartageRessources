@@ -179,6 +179,20 @@ ClientInfo *get_client_by_pid(ArrayListClientInfo *list, int client_pid) {
     return NULL;
 }
 
+// Méthode permettant de savoir combien de clients sont connectés
+int get_clients_count(ArrayListClientInfo *list) {
+    // Verrouiller le sémaphore
+    sem_wait(&list->semaphore);
+
+    // Récupérer le nombre de clients
+    int clients_count = list->clients_count;
+
+    // Déverrouiller le sémaphore
+    sem_post(&list->semaphore);
+
+    return clients_count;
+}
+
 // Méthode permettant de fermer une socket
 void fermer_socket(int socket) {
     printf("Fermeture de la socket...\n");
@@ -396,7 +410,7 @@ void handle_client(int client_sock, const char *client_ip, int client_port) {
 }
 
 // Méthode permettant d'attendre la connexion d'un client et de la créer/gérer
-int accept_client(int server_socket) {
+void accept_client(int server_socket) {
     int client_socket;
     struct sockaddr_in client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
@@ -413,6 +427,13 @@ int accept_client(int server_socket) {
     // Afficher les informations du client
     printf("Client connecté: %s:%d sock_id=%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_socket);
 
+    // Vérifier si le nombre de clients est atteint
+    if (get_clients_count(clients) >= MAX_CLIENTS) {
+        // Fermer la socket client
+        fermer_socket(client_socket);
+        return;
+    }
+
     // Fork pour gérer le client
     pid_t pid = fork();
     if (pid < 0) {
@@ -427,8 +448,6 @@ int accept_client(int server_socket) {
         // Fermer la socket client car le père ne gère pas le client
         close(client_socket);
     }
-
-    return client_socket;
 }
 
 // Méthode permettant de gérer l'affichage du status du serveur
