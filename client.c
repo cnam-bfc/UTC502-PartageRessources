@@ -44,6 +44,7 @@ int socket_client(const char *address, int port) {
     } else {
         printf("Connecté !\n");
     }
+
     return client_socket;
 }
 
