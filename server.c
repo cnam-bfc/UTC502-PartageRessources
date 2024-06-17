@@ -16,6 +16,7 @@
 #include <linux/mman.h>
 #include <time.h>
 #include <sys/stat.h>
+#include <signal.h>
 
 #define BUFFER_SIZE 1024
 #define MAX_CLIENTS 100
@@ -40,13 +41,22 @@ typedef struct {
 
 // Variables globales
 int resources_amount;
+int server_sock;
 
 // Sémaphore
 sem_t *semaphore_ressources;
 
+// Descripteur de fichier de la mémoire partagée 'ressources disponibles'
+int shm_fd_ressources_available;
+// Pointeur pour l'association du segment de mémoire partagée 'ressources disponibles' à un espace d'adressage du processus
+void *shm_region_ressources_available;
 // Variable partagée 'ressources disponibles'
 int *ressources_available;
 
+// Descripteur de fichier de la mémoire partagée 'clients'
+int shm_fd_clients;
+// Pointeur pour l'association du segment de mémoire partagée 'clients' à un espace d'adressage du processus
+void *shm_region_clients;
 // Variable partagée 'clients'
 ArrayListClientInfo *clients;
 
@@ -421,7 +431,7 @@ void accept_client(int server_socket) {
     // Accepter une connexion client
     if ((client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
         perror("Échec de l'acceptation");
-        return -1;
+        return;
     }
 
     // Afficher les informations du client
@@ -472,11 +482,17 @@ void handle_status() {
     }
 }
 
-// Gestionnaire de signal pour SIGCHLD
-void sigchld_handler(int signum) {
-    int saved_errno = errno;
-    while (waitpid(-1, NULL, WNOHANG) > 0);
-    errno = saved_errno;
+// Méthode permettant de gérer le signal SIGINT
+void handle_sigint(int sig) {
+    // Fermer le serveur
+    printf("Fermeture du serveur...\n");
+    // Nettoyer
+    fermer_socket(server_sock);
+    fermer_semaphore(semaphore_ressources, SEM_RESSOURCES_NAME);
+    sem_destroy(&clients->semaphore);
+    fermer_segment_memoire_partagee(&shm_fd_ressources_available, &shm_region_ressources_available, SHM_RESSOURCES_AVAILABLE_NAME, sizeof(int));
+    fermer_segment_memoire_partagee(&shm_fd_clients, &shm_region_clients, SHM_CLIENTS_NAME, sizeof(ArrayListClientInfo));
+    exit(EXIT_SUCCESS);
 }
 
 // Méthode permettant de lire un fichier de configuration
@@ -518,10 +534,6 @@ int main(int argc, char *argv[]) {
         lireFichierConfig(argv[1], &port, &resources_amount);
     }
 
-    // Descripteur de fichier de la mémoire partagée 'ressources disponibles'
-    int shm_fd_ressources_available;
-    // Pointeur pour l'association du segment de mémoire partagée 'ressources disponibles' à un espace d'adressage du processus
-    void *shm_region_ressources_available;
     // Créer un segment de mémoire partagée pour les ressources disponibles
     creer_segment_memoire_partagee(&shm_fd_ressources_available, &shm_region_ressources_available, SHM_RESSOURCES_AVAILABLE_NAME, sizeof(int));
     // Lier la variable partagée 'ressources disponibles'
@@ -530,10 +542,6 @@ int main(int argc, char *argv[]) {
     // Initialisation des ressources
     *ressources_available = resources_amount;
 
-    // Descripteur de fichier de la mémoire partagée 'clients'
-    int shm_fd_clients;
-    // Pointeur pour l'association du segment de mémoire partagée 'clients' à un espace d'adressage du processus
-    void *shm_region_clients;
     // Créer un segment de mémoire partagée pour les clients
     creer_segment_memoire_partagee(&shm_fd_clients, &shm_region_clients, SHM_CLIENTS_NAME, sizeof(ArrayListClientInfo));
     // Lier la variable partagée 'clients'
@@ -548,13 +556,8 @@ int main(int argc, char *argv[]) {
     // Mise en place du sémaphore des ressources
     creer_semaphore(&semaphore_ressources, SEM_RESSOURCES_NAME, 1);
 
-    int server_sock;
-
     // Créer une socket serveur
     server_sock = socket_serveur(port);
-
-    // Gérer la terminaison des enfants
-    signal(SIGCHLD, sigchld_handler);
 
     // Gérer l'actualisation du status du serveur ici avec un fork
     pid_t pid_status = fork();
@@ -570,16 +573,19 @@ int main(int argc, char *argv[]) {
         exit(EXIT_SUCCESS);
     }
 
+    // Gérer SIGINT
+    struct sigaction act;
+    act.sa_handler = handle_sigint;
+    sigemptyset(&act.sa_mask);
+    act.sa_flags = SA_RESTART;
+    
+    if (sigaction(SIGINT, &act, NULL) == -1) {
+        perror("sigaction");
+        exit(EXIT_FAILURE);
+    }
+
     for (;;) {
         // Attendre une connexion client
         accept_client(server_sock);
     }
-
-    // Nettoyer
-    fermer_socket(server_sock);
-    fermer_semaphore(semaphore_ressources, SEM_RESSOURCES_NAME);
-    sem_destroy(&clients->semaphore);
-    fermer_segment_memoire_partagee(&shm_fd_ressources_available, &shm_region_ressources_available, SHM_RESSOURCES_AVAILABLE_NAME, sizeof(int));
-    fermer_segment_memoire_partagee(&shm_fd_clients, &shm_region_clients, SHM_CLIENTS_NAME, sizeof(ArrayListClientInfo));
-    exit(EXIT_SUCCESS);
 }
