@@ -11,7 +11,7 @@ int total_resources = 0;
 
 // Méthode permettant d'afficher le message d'erreur d'utilisation du programme
 void usage(const char *prog_name) {
-    fprintf(stderr, "Usage: %s <server_address> <server_port> <resource_amount> <delay>\n", prog_name);
+    fprintf(stderr, "Usage: %s <server_address> <server_port> <resource_amount> <delay>\nOR\nUsage: %s <config_file_path>\n", prog_name, prog_name);
     exit(EXIT_FAILURE);
 }
 
@@ -130,16 +130,59 @@ void demander_ressource(int socket, int taille) {
     free(reponse);
 }
 
+// --- config.txt ---
+//server_address=127.0.0.1
+//server_port=12345
+//resource_amount=2
+//delay=2
+
+// Méthode permettant de lire un fichier de configuration
+void lireFichierConfig(const char *fichier, char **server_address, int *server_port, int *resource_amount, int *delay) {
+    FILE *fichier_config = fopen(fichier, "r");
+    if (fichier_config == NULL) {
+        perror("Erreur lors de l'ouverture du fichier de configuration");
+        exit(EXIT_FAILURE);
+    }
+
+    char ligne[BUFFER_SIZE];
+    while (fgets(ligne, BUFFER_SIZE, fichier_config) != NULL) {
+        char clef[BUFFER_SIZE];
+        char valeur[BUFFER_SIZE];
+        if (sscanf(ligne, "%[^=]=%[^\n]", clef, valeur) == 2) {
+            if (strcmp(clef, "server_address") == 0) {
+                *server_address = strdup(valeur);
+            } else if (strcmp(clef, "server_port") == 0) {
+                *server_port = atoi(valeur);
+            } else if (strcmp(clef, "resource_amount") == 0) {
+                *resource_amount = atoi(valeur);
+            } else if (strcmp(clef, "delay") == 0) {
+                *delay = atoi(valeur);
+            }
+        }
+    }
+
+    fclose(fichier_config);
+}
+
 // Méthode principale du programme
 int main(int argc, char *argv[]) {
-    if (argc != 5) {
+    if (argc != 5 && argc != 2) {
         usage(argv[0]);
     }
 
-    const char *server_address = argv[1];
-    int server_port = atoi(argv[2]);
-    int resource_amount = atoi(argv[3]);
-    int delay = atoi(argv[4]);
+    char *server_address;
+    int server_port;
+    int resource_amount;
+    int delay;
+
+    if(argc == 5){
+        server_address = argv[1];
+        server_port = atoi(argv[2]);
+        resource_amount = atoi(argv[3]);
+        delay = atoi(argv[4]);
+    } else {
+        lireFichierConfig(argv[1], &server_address, &server_port, &resource_amount, &delay);
+    }
 
     int sock;
     char buffer[BUFFER_SIZE];
