@@ -22,12 +22,12 @@ int socket_client(const char *address, int port) {
     struct hostent *hostent;
 
     if ((hostent = gethostbyname(address)) == NULL) {
-        perror("Erreur lors de l'appel de gethostbyname()");
+        perror("Erreur lors de la résolution du nom d'hôte");
         exit(EXIT_FAILURE);
     }
 
     if ((client_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-        perror("Erreur lors de l'appel de socket()");
+        perror("Échec de la création de la socket");
         exit(EXIT_FAILURE);
     }
 
