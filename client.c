@@ -48,24 +48,24 @@ int socket_client(const char *address, unsigned short port) {
 
 // Méthode permettant de fermer une socket
 void fermer_socket(int socket) {
-    printf("Fermeture de la socket %d...\n", socket);
+    printf("(sock=%d) Fermeture de la socket...\n", socket);
     if (close(socket) == -1) {
-        perror("Erreur lors de la fermeture de la socket %d");
+        perror("Erreur lors de la fermeture de la socket");
         exit(EXIT_FAILURE);
     } else {
-        printf("Socket %d fermée !\n", socket);
+        printf("(sock=%d) Socket fermée !\n", socket);
     }
 }
 
 // Méthode permettant d'envoyer une commande au serveur
 void envoyer_commande(int socket, const char *commande) {
-    printf("Envoi de la commande: \"%s\"...\n", commande);
+    printf("(sock=%d) Envoi de la commande: \"%s\"...\n", socket, commande);
     if (send(socket, commande, strlen(commande), 0) < 0) {
         perror("Échec de l'envoi");
         fermer_socket(socket);
         exit(EXIT_FAILURE);
     } else {
-        printf("Commande envoyée !\n");
+        printf("(sock=%d) Commande envoyée !\n", socket);
     }
 }
 
@@ -74,21 +74,21 @@ char *recevoir_reponse(int socket) {
     char buffer[BUFFER_SIZE];
     int bytes_received;
 
-    printf("Attente de la réponse du serveur...\n");
+    printf("(sock=%d) Attente de la réponse du serveur...\n", socket);
     if ((bytes_received = recv(socket, buffer, BUFFER_SIZE, 0)) < 0) {
         perror("Échec de la réception");
         fermer_socket(socket);
         exit(EXIT_FAILURE);
     } else if (bytes_received == 0) {
-        printf("Le serveur a fermé la connexion\n");
+        printf("(sock=%d) Le serveur a fermé la connexion\n", socket);
         fermer_socket(socket);
         exit(EXIT_FAILURE);
     } else {
-        printf("Réponse reçue !\n");
+        printf("(sock=%d) Réponse reçue !\n", socket);
     }
 
     buffer[bytes_received] = '\0';
-    printf("Réponse du serveur: \"%s\"\n", buffer);
+    printf("(sock=%d) Réponse du serveur: \"%s\"\n", socket, buffer);
 
     return strdup(buffer);
 }
