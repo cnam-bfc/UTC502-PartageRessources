@@ -42,6 +42,42 @@ void fermer_socket(int socket) {
     }
 }
 
+// Méthode permettant de créer une socket serveur et d'écouter les connexions entrantes
+int socket_serveur(int port) {
+    int server_socket;
+    struct sockaddr_in server_addr;
+
+    // Créer une socket
+    if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        perror("Échec de la création de la socket");
+        exit(EXIT_FAILURE);
+    }
+
+    // Configuration de l'adresse du serveur
+    memset(&server_addr, 0, sizeof(server_addr));
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(port);
+
+    // Lier la socket
+    if (bind(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
+        perror("Échec de la liaison");
+        fermer_socket(server_socket);
+        exit(EXIT_FAILURE);
+    }
+
+    // Écouter les connexions
+    if (listen(server_socket, MAX_CLIENTS) < 0) {
+        perror("Échec de l'écoute");
+        fermer_socket(server_socket);
+        exit(EXIT_FAILURE);
+    } else {
+        printf("Serveur à l'écoute sur le port %d\n", port);
+    }
+
+    return server_socket;
+}
+
 // Méthode permettant d'envoyer une réponse au client
 void envoyer_reponse(int socket, const char *reponse) {
     printf("(sock=%d) Envoi de la réponse: \"%s\"...\n", socket, reponse);
@@ -155,39 +191,14 @@ int main(int argc, char *argv[]) {
     }
 
     int server_sock;
-    struct sockaddr_in server_addr;
 
     // Créer une socket
-    if ((server_sock = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        perror("Échec de la création de la socket");
-        exit(EXIT_FAILURE);
-    }
+    server_sock = socket_serveur(port);
 
-    // Configuration de l'adresse du serveur
-    memset(&server_addr, 0, sizeof(server_addr));
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_addr.s_addr = INADDR_ANY;
-    server_addr.sin_port = htons(port);
-
-    // Lier la socket
-    if (bind(server_sock, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
-        perror("Échec de la liaison");
-        fermer_socket(server_sock);
-        exit(EXIT_FAILURE);
-    }
-
-    // Écouter les connexions
-    if (listen(server_sock, MAX_CLIENTS) < 0) {
-        perror("Échec de l'écoute");
-        fermer_socket(server_sock);
-        exit(EXIT_FAILURE);
-    }
-
-    signal(SIGCHLD, sigchld_handler); // Gérer la terminaison des enfants
+    // Gérer la terminaison des enfants
+    signal(SIGCHLD, sigchld_handler); 
 
     // TODO: Gérer l'actualisation du status du serveur ici avec un fork
-
-    printf("Serveur à l'écoute sur le port %d\n", port);
 
     for (;;) {
         int client_sock;
