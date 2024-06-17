@@ -33,51 +33,92 @@ void usage(const char *prog_name) {
 
 // Méthode permettant de fermer une socket
 void fermer_socket(int socket) {
-    printf("Fermeture de la socket %d...\n", socket);
+    printf("(sock=%d) Fermeture de la socket...\n", socket);
     if (close(socket) == -1) {
-        perror("Erreur lors de la fermeture de la socket %d");
+        perror("Erreur lors de la fermeture de la socket");
         exit(EXIT_FAILURE);
     } else {
-        printf("Socket %d fermée !\n", socket);
+        printf("(sock=%d) Socket fermée !\n", socket);
     }
+}
+
+// Méthode permettant d'envoyer une réponse au client
+void envoyer_reponse(int socket, const char *reponse) {
+    printf("(sock=%d) Envoi de la réponse: \"%s\"...\n", socket, reponse);
+    if (send(socket, reponse, strlen(reponse), 0) < 0) {
+        perror("Échec de l'envoi");
+        fermer_socket(socket);
+        exit(EXIT_FAILURE);
+    } else {
+        printf("(sock=%d) Réponse envoyée !\n", socket);
+    }
+}
+
+// Méthode permettant de recevoir une commande du client et la retourner
+char *recevoir_commande(int socket) {
+    char buffer[BUFFER_SIZE];
+    int bytes_received;
+
+    printf("(sock=%d) Attente de la commande du client...\n", socket);
+    if ((bytes_received = recv(socket, buffer, BUFFER_SIZE, 0)) < 0) {
+        perror("Échec de la réception");
+        fermer_socket(socket);
+        exit(EXIT_FAILURE);
+    } else if (bytes_received == 0) {
+        printf("(sock=%d) Le client a fermé la connexion\n", socket);
+        fermer_socket(socket);
+        exit(EXIT_FAILURE);
+    } else {
+        printf("(sock=%d) Commande reçue !\n", socket);
+    }
+
+    buffer[bytes_received] = '\0';
+    printf("(sock=%d) Commande du client: \"%s\"\n", socket, buffer);
+
+    return strdup(buffer);
 }
 
 // Méthode permettant de gérer un client
 void handle_client(int client_sock) {
-    char buffer[BUFFER_SIZE];
-    int bytes_received;
     int client_pid = getpid();
 
-    while ((bytes_received = recv(client_sock, buffer, BUFFER_SIZE, 0)) > 0) {
-        buffer[bytes_received] = '\0';
+    for (;;) {
+        char *commande = recevoir_commande(client_sock);
 
         int requested_amount;
-        if (sscanf(buffer, "REQUEST %d", &requested_amount) == 1) {
+        if (sscanf(commande, "REQUEST %d", &requested_amount) == 1) {
             struct sembuf sb = {0, -1, 0}; // Verrouiller
             semop(sem_id, &sb, 1);
 
             if (requested_amount <= resource_amount) {
                 resource_amount -= requested_amount;
+
+                // Répondre au client OK
+                char buffer[BUFFER_SIZE];
                 snprintf(buffer, BUFFER_SIZE, "GRANTED %d", requested_amount);
+                envoyer_reponse(client_sock, buffer);
             } else {
+                // Répondre au client KO
+                char buffer[BUFFER_SIZE];
                 snprintf(buffer, BUFFER_SIZE, "DENIED %d, REASON: Ressources insuffisantes", requested_amount);
+                envoyer_reponse(client_sock, buffer);
             }
 
             sb.sem_op = 1; // Déverrouiller
             semop(sem_id, &sb, 1);
-
-            send(client_sock, buffer, strlen(buffer), 0);
-        } else if (sscanf(buffer, "RELEASE %d", &requested_amount) == 1) {
+        } else if (sscanf(commande, "RELEASE %d", &requested_amount) == 1) {
             struct sembuf sb = {0, -1, 0}; // Verrouiller
             semop(sem_id, &sb, 1);
 
             resource_amount += requested_amount;
+
+            // Répondre au client OK
+            char buffer[BUFFER_SIZE];
             snprintf(buffer, BUFFER_SIZE, "RELEASED %d", requested_amount);
+            envoyer_reponse(client_sock, buffer);
 
             sb.sem_op = 1; // Déverrouiller
             semop(sem_id, &sb, 1);
-
-            send(client_sock, buffer, strlen(buffer), 0);
         }
     }
 
