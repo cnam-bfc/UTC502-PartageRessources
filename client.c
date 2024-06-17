@@ -16,7 +16,7 @@ void usage(const char *prog_name) {
 }
 
 // Méthode permettant de créer une socket client et de se connecter à un serveur
-int socket_client(const char *address, unsigned short port) {
+int socket_client(const char *address, int port) {
     int client_socket;
     struct sockaddr_in serveur_sockaddr_in;
     struct hostent *hostent;
