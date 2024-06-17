@@ -18,7 +18,7 @@ void usage(const char *prog_name) {
 // Méthode permettant de créer une socket client et de se connecter à un serveur
 int socket_client(const char *address, int port) {
     int client_socket;
-    struct sockaddr_in serveur_sockaddr_in;
+    struct sockaddr_in serveur_sockaddr;
     struct hostent *hostent;
 
     if ((hostent = gethostbyname(address)) == NULL) {
@@ -31,13 +31,13 @@ int socket_client(const char *address, int port) {
         exit(EXIT_FAILURE);
     }
 
-    memset(&serveur_sockaddr_in, 0, sizeof(serveur_sockaddr_in));
-    serveur_sockaddr_in.sin_family = AF_INET;
-    serveur_sockaddr_in.sin_port = htons(port);
-    memcpy(&serveur_sockaddr_in.sin_addr, hostent->h_addr_list[0], hostent->h_length);
+    memset(&serveur_sockaddr, 0, sizeof(serveur_sockaddr));
+    serveur_sockaddr.sin_family = AF_INET;
+    serveur_sockaddr.sin_port = htons(port);
+    memcpy(&serveur_sockaddr.sin_addr, hostent->h_addr_list[0], hostent->h_length);
 
     printf("Connexion à %s (%s) sur le port %d...\n", hostent->h_name, address, port);
-    if (connect(client_socket, (struct sockaddr*)&serveur_sockaddr_in, sizeof(serveur_sockaddr_in)) == -1) {
+    if (connect(client_socket, (struct sockaddr*)&serveur_sockaddr, sizeof(serveur_sockaddr)) == -1) {
         perror("Erreur lors de l'appel de connect()");
         exit(EXIT_FAILURE);
     } else {
