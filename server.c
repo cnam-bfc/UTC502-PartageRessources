@@ -14,6 +14,7 @@
 #define MAX_CLIENTS 100
 #define BUFFER_SIZE 1024
 
+// Objet permettant de stocker les informations d'un client
 typedef struct {
     int client_pid;
     int resource_amount;
@@ -24,6 +25,7 @@ ClientInfo clients[MAX_CLIENTS];
 int client_count = 0;
 int sem_id;
 
+// Méthode permettant d'afficher le message d'erreur d'utilisation du programme
 void usage(const char *prog_name) {
     fprintf(stderr, "Usage: %s <resource_amount> <port>\n", prog_name);
     exit(EXIT_FAILURE);
@@ -40,6 +42,7 @@ void fermer_socket(int socket) {
     }
 }
 
+// Méthode permettant de gérer un client
 void handle_client(int client_sock) {
     char buffer[BUFFER_SIZE];
     int bytes_received;
@@ -82,12 +85,14 @@ void handle_client(int client_sock) {
     exit(0);
 }
 
+// Gestionnaire de signal pour SIGCHLD
 void sigchld_handler(int signum) {
     int saved_errno = errno;
     while (waitpid(-1, NULL, WNOHANG) > 0);
     errno = saved_errno;
 }
 
+// Méthode principale
 int main(int argc, char *argv[]) {
     if (argc != 3) {
         usage(argv[0]);
@@ -139,6 +144,8 @@ int main(int argc, char *argv[]) {
 
     signal(SIGCHLD, sigchld_handler); // Gérer la terminaison des enfants
 
+    // TODO: Gérer l'actualisation du status du serveur ici avec un fork
+
     printf("Serveur à l'écoute sur le port %d\n", port);
 
     for (;;) {
@@ -146,11 +153,17 @@ int main(int argc, char *argv[]) {
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
 
+        // Attendre une connexion client
+        printf("En attente d'une connexion client...\n");
+
         // Accepter une connexion client
         if ((client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
             perror("Échec de l'acceptation");
             continue;
         }
+
+        // Afficher les informations du client
+        printf("Client connecté: %s:%d sock_id=%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_sock);
 
         // Fork pour gérer le client
         pid_t pid = fork();
@@ -158,10 +171,10 @@ int main(int argc, char *argv[]) {
             perror("Échec du fork");
             fermer_socket(client_sock);
         } else if (pid == 0) {
-            fermer_socket(server_sock);
+            close(server_sock);
             handle_client(client_sock);
         } else {
-            fermer_socket(client_sock);
+            close(client_sock);
             clients[client_count].client_pid = pid;
             clients[client_count].resource_amount = 0;
             client_count++;
