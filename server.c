@@ -243,7 +243,10 @@ bool changer_ressources_client(ClientInfo *clientInfo, int change_amount) {
 }
 
 // Méthode permettant de libérer les ressources utilisées par un client
-void liberer_ressources_client(ClientInfo *clientInfo) {
+void liberer_ressources_client(int clientPID) {
+    // Récupérer le pointeur du client
+    ClientInfo *clientInfo = get_client_by_pid(clients, clientPID);
+
     // Récupérer les ressources utilisées par le client
     int resources_used = clientInfo->resources_using;
 
@@ -254,11 +257,11 @@ void liberer_ressources_client(ClientInfo *clientInfo) {
 }
 
 // Méthode permettant de fermer une socket client
-void fermer_socket_client(int socket, ArrayListClientInfo *list, ClientInfo *clientInfo) {
+void fermer_socket_client(int socket, ArrayListClientInfo *list, int clientPID) {
     // Libérer les ressources utilisées par le client
-    liberer_ressources_client(clientInfo);
+    liberer_ressources_client(clientPID);
     // Retirer le client de la liste des clients
-    retirer_client(list, clientInfo->client_pid);
+    retirer_client(list, clientPID);
     // Fermer la socket client
     fermer_socket(socket);
 }
@@ -300,11 +303,11 @@ int socket_serveur(int port) {
 }
 
 // Méthode permettant d'envoyer une réponse au client
-void envoyer_reponse(int socket, const char *reponse, ArrayListClientInfo *list, ClientInfo *clientInfo) {
+void envoyer_reponse(int socket, const char *reponse, ArrayListClientInfo *list, int clientPID) {
     printf("Envoi de la réponse: \"%s\"...\n", reponse);
     if (send(socket, reponse, strlen(reponse), 0) < 0) {
         perror("Échec de l'envoi");
-        fermer_socket_client(socket, list, clientInfo);
+        fermer_socket_client(socket, list, clientPID);
         exit(EXIT_FAILURE);
     } else {
         printf("Réponse envoyée !\n");
@@ -312,18 +315,18 @@ void envoyer_reponse(int socket, const char *reponse, ArrayListClientInfo *list,
 }
 
 // Méthode permettant de recevoir une commande du client et la retourner
-char *recevoir_commande(int socket, ArrayListClientInfo *list, ClientInfo *clientInfo) {
+char *recevoir_commande(int socket, ArrayListClientInfo *list, int clientPID) {
     char buffer[BUFFER_SIZE];
     int bytes_received;
 
     printf("Attente de la commande du client...\n");
     if ((bytes_received = recv(socket, buffer, BUFFER_SIZE, 0)) < 0) {
         perror("Échec de la réception");
-        fermer_socket_client(socket, list, clientInfo);
+        fermer_socket_client(socket, list, clientPID);
         exit(EXIT_FAILURE);
     } else if (bytes_received == 0) {
         printf("Le client a fermé la connexion\n");
-        fermer_socket_client(socket, list, clientInfo);
+        fermer_socket_client(socket, list, clientPID);
         exit(EXIT_FAILURE);
     } else {
         printf("Commande reçue !\n");
@@ -350,11 +353,11 @@ void handle_client(int client_sock, const char *client_ip, int client_port) {
     // Ajouter le client à la liste des clients
     ajouter_client(clients, clientInfoInst);
 
-    // Récupérer le pointeur du client
-    ClientInfo *clientInfo = get_client_by_pid(clients, client_pid);
-
     for (;;) {
-        char *commande = recevoir_commande(client_sock, clients, clientInfo);
+        char *commande = recevoir_commande(client_sock, clients, client_pid);
+
+        // Récupérer le pointeur du client
+        ClientInfo *clientInfo = get_client_by_pid(clients, client_pid);
 
         int requested_amount;
         if (sscanf(commande, "REQUEST %d", &requested_amount) == 1) {
@@ -363,12 +366,12 @@ void handle_client(int client_sock, const char *client_ip, int client_port) {
                 // Répondre au client OK
                 char buffer[BUFFER_SIZE];
                 snprintf(buffer, BUFFER_SIZE, "GRANTED %d", requested_amount);
-                envoyer_reponse(client_sock, buffer, clients, clientInfo);
+                envoyer_reponse(client_sock, buffer, clients, client_pid);
             } else {
                 // Répondre au client KO
                 char buffer[BUFFER_SIZE];
                 snprintf(buffer, BUFFER_SIZE, "DENIED %d, REASON: Ressources insuffisantes", requested_amount);
-                envoyer_reponse(client_sock, buffer, clients, clientInfo);
+                envoyer_reponse(client_sock, buffer, clients, client_pid);
             }
         } else if (sscanf(commande, "RELEASE %d", &requested_amount) == 1) {
             // Demander la libération des ressources
@@ -376,18 +379,18 @@ void handle_client(int client_sock, const char *client_ip, int client_port) {
                 // Répondre au client OK
                 char buffer[BUFFER_SIZE];
                 snprintf(buffer, BUFFER_SIZE, "RELEASED %d", requested_amount);
-                envoyer_reponse(client_sock, buffer, clients, clientInfo);
+                envoyer_reponse(client_sock, buffer, clients, client_pid);
             } else {
                 // Répondre au client KO
                 char buffer[BUFFER_SIZE];
                 snprintf(buffer, BUFFER_SIZE, "DENIED %d, REASON: Ressources insuffisantes", requested_amount);
-                envoyer_reponse(client_sock, buffer, clients, clientInfo);
+                envoyer_reponse(client_sock, buffer, clients, client_pid);
             }
         }
     }
 
     // Fermer la socket client
-    fermer_socket_client(client_sock, clients, clientInfo);
+    fermer_socket_client(client_sock, clients, client_pid);
     // Terminer le processus fils
     exit(EXIT_SUCCESS);
 }
