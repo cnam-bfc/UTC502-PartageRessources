@@ -162,6 +162,42 @@ void handle_client(int client_sock) {
     exit(0);
 }
 
+// Méthode permettant d'attendre la connexion d'un client et de la créer/gérer
+int accept_client(int server_socket) {
+    int client_socket;
+    struct sockaddr_in client_addr;
+    socklen_t client_addr_len = sizeof(client_addr);
+
+    // Attendre une connexion client
+    printf("En attente d'une connexion client...\n");
+
+    // Accepter une connexion client
+    if ((client_socket = accept(server_socket, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
+        perror("Échec de l'acceptation");
+        return -1;
+    }
+
+    // Afficher les informations du client
+    printf("Client connecté: %s:%d sock_id=%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_socket);
+
+    // Fork pour gérer le client
+    pid_t pid = fork();
+    if (pid < 0) {
+        perror("Échec du fork");
+        fermer_socket(client_socket);
+    } else if (pid == 0) {
+        close(server_socket);
+        handle_client(client_socket);
+    } else {
+        close(client_socket);
+        clients[client_count].client_pid = pid;
+        clients[client_count].resource_amount = 0;
+        client_count++;
+    }
+
+    return client_socket;
+}
+
 // Gestionnaire de signal pour SIGCHLD
 void sigchld_handler(int signum) {
     int saved_errno = errno;
@@ -192,7 +228,7 @@ int main(int argc, char *argv[]) {
 
     int server_sock;
 
-    // Créer une socket
+    // Créer une socket serveur
     server_sock = socket_serveur(port);
 
     // Gérer la terminaison des enfants
@@ -201,36 +237,8 @@ int main(int argc, char *argv[]) {
     // TODO: Gérer l'actualisation du status du serveur ici avec un fork
 
     for (;;) {
-        int client_sock;
-        struct sockaddr_in client_addr;
-        socklen_t client_addr_len = sizeof(client_addr);
-
         // Attendre une connexion client
-        printf("En attente d'une connexion client...\n");
-
-        // Accepter une connexion client
-        if ((client_sock = accept(server_sock, (struct sockaddr *)&client_addr, &client_addr_len)) < 0) {
-            perror("Échec de l'acceptation");
-            continue;
-        }
-
-        // Afficher les informations du client
-        printf("Client connecté: %s:%d sock_id=%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port), client_sock);
-
-        // Fork pour gérer le client
-        pid_t pid = fork();
-        if (pid < 0) {
-            perror("Échec du fork");
-            fermer_socket(client_sock);
-        } else if (pid == 0) {
-            close(server_sock);
-            handle_client(client_sock);
-        } else {
-            close(client_sock);
-            clients[client_count].client_pid = pid;
-            clients[client_count].resource_amount = 0;
-            client_count++;
-        }
+        accept_client(server_sock);
     }
 
     // Nettoyer
