@@ -117,7 +117,7 @@ char *recevoir_commande(int socket) {
 }
 
 // Méthode permettant de gérer un client
-void handle_client(int client_sock) {
+void handle_client(int client_id, int client_sock) {
     int client_pid = getpid();
 
     for (;;) {
@@ -191,7 +191,8 @@ int accept_client(int server_socket) {
         // Fermer la socket serveur car le fils ne gère pas le serveur
         close(server_socket);
         // Le fils gère le client
-        handle_client(client_socket);
+        // TODO SEMEPHAORE ICI
+        handle_client(client_count, client_socket);
     } else {
         // Fermer la socket client car le père ne gère pas le client
         close(client_socket);
@@ -201,6 +202,7 @@ int accept_client(int server_socket) {
         strcpy(clients[client_count].client_ip, inet_ntoa(client_addr.sin_addr));
         clients[client_count].client_port = ntohs(client_addr.sin_port);
         client_count++;
+        // TODO SEMEPHAORE ICI
     }
 
     return client_socket;
