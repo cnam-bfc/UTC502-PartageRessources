@@ -31,6 +31,7 @@ int socket_client(const char *address, int port) {
         exit(EXIT_FAILURE);
     }
 
+    // Configuration de l'adresse du serveur
     memset(&serveur_sockaddr, 0, sizeof(serveur_sockaddr));
     serveur_sockaddr.sin_family = AF_INET;
     serveur_sockaddr.sin_port = htons(port);
