@@ -27,7 +27,7 @@ int sem_id;
 
 // Méthode permettant d'afficher le message d'erreur d'utilisation du programme
 void usage(const char *prog_name) {
-    fprintf(stderr, "Usage: %s <resource_amount> <port>\n", prog_name);
+    fprintf(stderr, "Usage: %s <resource_amount> <port>\nOR\nUsage: %s <config_file>\n", prog_name, prog_name);
     exit(EXIT_FAILURE);
 }
 
@@ -205,14 +205,44 @@ void sigchld_handler(int signum) {
     errno = saved_errno;
 }
 
-// Méthode principale
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        usage(argv[0]);
+// Méthode permettant de lire un fichier de configuration
+void lireFichierConfig(const char *fichier, int *server_port, int *resource_amount) {
+    FILE *fichier_config = fopen(fichier, "r");
+    if (fichier_config == NULL) {
+        perror("Erreur lors de l'ouverture du fichier de configuration");
+        exit(EXIT_FAILURE);
     }
 
-    resource_amount = atoi(argv[1]);
-    int port = atoi(argv[2]);
+    char ligne[BUFFER_SIZE];
+    while (fgets(ligne, BUFFER_SIZE, fichier_config) != NULL) {
+        char clef[BUFFER_SIZE];
+        char valeur[BUFFER_SIZE];
+        if (sscanf(ligne, "%[^=]=%[^\n]", clef, valeur) == 2) {
+            if (strcmp(clef, "server_port") == 0) {
+                *server_port = atoi(valeur);
+            } else if (strcmp(clef, "resource_amount") == 0) {
+                *resource_amount = atoi(valeur);
+            }
+        }
+    }
+
+    fclose(fichier_config);
+}
+
+// Méthode principale
+int main(int argc, char *argv[]) {
+    if (argc != 3 && argc != 2) {
+        usage(argv[0]);
+    }
+    
+    int port;
+    
+    if(argc == 3) {
+        resource_amount = atoi(argv[1]);
+        port = atoi(argv[2]);
+    } else {
+        lireFichierConfig(argv[1], &port, &resource_amount);
+    }
 
     // Mise en place du sémaphore
     sem_id = semget(IPC_PRIVATE, 1, IPC_CREAT | 0666);
