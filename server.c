@@ -18,6 +18,8 @@
 typedef struct {
     int client_pid;
     int resource_amount;
+    char client_ip[INET_ADDRSTRLEN];
+    int client_port;
 } ClientInfo;
 
 int resource_amount;
@@ -186,12 +188,18 @@ int accept_client(int server_socket) {
         perror("Échec du fork");
         fermer_socket(client_socket);
     } else if (pid == 0) {
+        // Fermer la socket serveur car le fils ne gère pas le serveur
         close(server_socket);
+        // Le fils gère le client
         handle_client(client_socket);
     } else {
+        // Fermer la socket client car le père ne gère pas le client
         close(client_socket);
+        // Le père ajoute le client à la liste
         clients[client_count].client_pid = pid;
         clients[client_count].resource_amount = 0;
+        strcpy(clients[client_count].client_ip, inet_ntoa(client_addr.sin_addr));
+        clients[client_count].client_port = ntohs(client_addr.sin_port);
         client_count++;
     }
 
