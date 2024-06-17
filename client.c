@@ -144,8 +144,6 @@ int main(int argc, char *argv[]) {
     int delay = atoi(argv[4]);
 
     int sock;
-    char buffer[BUFFER_SIZE];
-    int bytes_received;
 
     // Créer une socket
     sock = socket_client(server_address, server_port);
