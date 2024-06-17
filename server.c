@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
+#include <stdbool.h>
 #include <arpa/inet.h>
 #include <signal.h>
 #include <sys/wait.h>
@@ -116,6 +117,62 @@ char *recevoir_commande(int socket) {
     return strdup(buffer);
 }
 
+// Méthode permettant de faire une demande de ressources
+bool demander_ressource(int client_id, int requested_amount) {
+    // Verrouiller le sémaphore des ressources
+    struct sembuf sb = {0, -1, 0};
+    semop(sem_id, &sb, 1);
+
+    // Vérifier si les ressources sont suffisantes
+    if (requested_amount <= resource_amount) {
+        // Allouer les ressources
+        resource_amount -= requested_amount;
+        clients[client_id].resource_amount += requested_amount;
+
+        // Déverrouiller le sémaphore des ressources
+        sb.sem_op = 1;
+        semop(sem_id, &sb, 1);
+
+        // Ressources allouées
+        return true;
+    } else {
+        // Déverrouiller le sémaphore des ressources
+        sb.sem_op = 1;
+        semop(sem_id, &sb, 1);
+
+        // Ressources insuffisantes
+        return false;
+    }
+}
+
+// Méthode permettant de faire une demande de libération de ressources
+bool liberer_ressources(int client_id, int released_amount) {
+    // Verrouiller le sémaphore des ressources
+    struct sembuf sb = {0, -1, 0};
+    semop(sem_id, &sb, 1);
+
+    // Vérifier si le client a suffisamment de ressources
+    if (released_amount <= clients[client_id].resource_amount) {
+        // Libérer les ressources
+        resource_amount += released_amount;
+        clients[client_id].resource_amount -= released_amount;
+        
+        // Déverrouiller le sémaphore des ressources
+        sb.sem_op = 1;
+        semop(sem_id, &sb, 1);
+
+        // Ressources libérées
+        return true;
+    } else {
+        // Déverrouiller le sémaphore des ressources
+        sb.sem_op = 1;
+        semop(sem_id, &sb, 1);
+
+        // Ressources insuffisantes
+        return false;
+    }
+}
+
 // Méthode permettant de gérer un client
 void handle_client(int client_id, int client_sock) {
     int client_pid = getpid();
@@ -135,12 +192,8 @@ void handle_client(int client_id, int client_sock) {
 
         int requested_amount;
         if (sscanf(commande, "REQUEST %d", &requested_amount) == 1) {
-            struct sembuf sb = {0, -1, 0}; // Verrouiller
-            semop(sem_id, &sb, 1);
-
-            if (requested_amount <= resource_amount) {
-                resource_amount -= requested_amount;
-
+            // Demander les ressources
+            if (demander_ressource(client_id, requested_amount)) {
                 // Répondre au client OK
                 char buffer[BUFFER_SIZE];
                 snprintf(buffer, BUFFER_SIZE, "GRANTED %d", requested_amount);
@@ -151,22 +204,19 @@ void handle_client(int client_id, int client_sock) {
                 snprintf(buffer, BUFFER_SIZE, "DENIED %d, REASON: Ressources insuffisantes", requested_amount);
                 envoyer_reponse(client_sock, buffer);
             }
-
-            sb.sem_op = 1; // Déverrouiller
-            semop(sem_id, &sb, 1);
         } else if (sscanf(commande, "RELEASE %d", &requested_amount) == 1) {
-            struct sembuf sb = {0, -1, 0}; // Verrouiller
-            semop(sem_id, &sb, 1);
-
-            resource_amount += requested_amount;
-
-            // Répondre au client OK
-            char buffer[BUFFER_SIZE];
-            snprintf(buffer, BUFFER_SIZE, "RELEASED %d", requested_amount);
-            envoyer_reponse(client_sock, buffer);
-
-            sb.sem_op = 1; // Déverrouiller
-            semop(sem_id, &sb, 1);
+            // Demander la libération des ressources
+            if (liberer_ressources(client_id, requested_amount)) {
+                // Répondre au client OK
+                char buffer[BUFFER_SIZE];
+                snprintf(buffer, BUFFER_SIZE, "RELEASED %d", requested_amount);
+                envoyer_reponse(client_sock, buffer);
+            } else {
+                // Répondre au client KO
+                char buffer[BUFFER_SIZE];
+                snprintf(buffer, BUFFER_SIZE, "DENIED %d, REASON: Ressources insuffisantes", requested_amount);
+                envoyer_reponse(client_sock, buffer);
+            }
         }
     }
 
