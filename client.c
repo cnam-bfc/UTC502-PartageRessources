@@ -17,12 +17,12 @@ void usage(const char *prog_name) {
 
 // Méthode permettant de fermer une socket
 void fermer_socket(int socket) {
-    printf("(sock=%d) Fermeture de la socket...\n", socket);
+    printf("Fermeture de la socket...\n");
     if (close(socket) == -1) {
         perror("Erreur lors de la fermeture de la socket");
         exit(EXIT_FAILURE);
     } else {
-        printf("(sock=%d) Socket fermée !\n", socket);
+        printf("Socket fermée !\n");
     }
 }
 
@@ -61,13 +61,13 @@ int socket_client(const char *address, int port) {
 
 // Méthode permettant d'envoyer une commande au serveur
 void envoyer_commande(int socket, const char *commande) {
-    printf("(sock=%d) Envoi de la commande: \"%s\"...\n", socket, commande);
+    printf("Envoi de la commande: \"%s\"...\n", commande);
     if (send(socket, commande, strlen(commande), 0) < 0) {
         perror("Échec de l'envoi");
         fermer_socket(socket);
         exit(EXIT_FAILURE);
     } else {
-        printf("(sock=%d) Commande envoyée !\n", socket);
+        printf("Commande envoyée !\n");
     }
 }
 
@@ -76,21 +76,21 @@ char *recevoir_reponse(int socket) {
     char buffer[BUFFER_SIZE];
     int bytes_received;
 
-    printf("(sock=%d) Attente de la réponse du serveur...\n", socket);
+    printf("Attente de la réponse du serveur...\n");
     if ((bytes_received = recv(socket, buffer, BUFFER_SIZE, 0)) < 0) {
         perror("Échec de la réception");
         fermer_socket(socket);
         exit(EXIT_FAILURE);
     } else if (bytes_received == 0) {
-        printf("(sock=%d) Le serveur a fermé la connexion\n", socket);
+        printf("Le serveur a fermé la connexion\n");
         fermer_socket(socket);
         exit(EXIT_FAILURE);
     } else {
-        printf("(sock=%d) Réponse reçue !\n", socket);
+        printf("Réponse reçue !\n");
     }
 
     buffer[bytes_received] = '\0';
-    printf("(sock=%d) Réponse du serveur: \"%s\"\n", socket, buffer);
+    printf("Réponse du serveur: \"%s\"\n", buffer);
 
     return strdup(buffer);
 }
