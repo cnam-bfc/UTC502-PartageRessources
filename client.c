@@ -15,6 +15,17 @@ void usage(const char *prog_name) {
     exit(EXIT_FAILURE);
 }
 
+// Méthode permettant de fermer une socket
+void fermer_socket(int socket) {
+    printf("(sock=%d) Fermeture de la socket...\n", socket);
+    if (close(socket) == -1) {
+        perror("Erreur lors de la fermeture de la socket");
+        exit(EXIT_FAILURE);
+    } else {
+        printf("(sock=%d) Socket fermée !\n", socket);
+    }
+}
+
 // Méthode permettant de créer une socket client et de se connecter à un serveur
 int socket_client(const char *address, int port) {
     int client_socket;
@@ -46,17 +57,6 @@ int socket_client(const char *address, int port) {
     }
 
     return client_socket;
-}
-
-// Méthode permettant de fermer une socket
-void fermer_socket(int socket) {
-    printf("(sock=%d) Fermeture de la socket...\n", socket);
-    if (close(socket) == -1) {
-        perror("Erreur lors de la fermeture de la socket");
-        exit(EXIT_FAILURE);
-    } else {
-        printf("(sock=%d) Socket fermée !\n", socket);
-    }
 }
 
 // Méthode permettant d'envoyer une commande au serveur
