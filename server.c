@@ -315,7 +315,7 @@ int socket_serveur(int port) {
     }
 
     // Écouter les connexions
-    if (listen(server_socket, SOMAXCONN) < 0) {
+    if (listen(server_socket, MAX_CLIENTS) < 0) {
         perror("Échec de l'écoute");
         fermer_socket(server_socket);
         exit(EXIT_FAILURE);
