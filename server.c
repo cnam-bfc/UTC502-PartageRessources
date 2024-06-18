@@ -25,7 +25,7 @@
 #define SHM_CLIENTS_NAME "/shm_clients"
 
 // Objet permettant de stocker les informations d'un client
-typedef struct ClientInfo {
+typedef struct {
     int client_pid;
     int resources_using;
     char client_ip[INET_ADDRSTRLEN];
